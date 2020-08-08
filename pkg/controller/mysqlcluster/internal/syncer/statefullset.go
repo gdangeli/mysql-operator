@@ -355,10 +355,15 @@ func (s *sfsSyncer) ensureContainersSpec() []core.Container {
 		s.cluster.GetMysqlImage(),
 		[]string{},
 	)
-	mysql.Ports = ensurePorts(core.ContainerPort{
-		Name:          MysqlPortName,
-		ContainerPort: MysqlPort,
-	})
+
+    mysql.Ports = ensurePorts(core.ContainerPort{
+         Name:          MysqlPortName,
+         ContainerPort: MysqlPort,
+    }, core.ContainerPort{
+         Name:          "binlog",
+         ContainerPort: 3307,
+    })
+
 	mysql.Resources = s.ensureResources(containerMysqlName)
 	mysql.LivenessProbe = ensureProbe(60, 5, 5, core.Handler{
 		Exec: &core.ExecAction{

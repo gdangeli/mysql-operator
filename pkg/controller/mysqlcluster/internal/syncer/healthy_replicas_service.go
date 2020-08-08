@@ -21,6 +21,7 @@ import (
 	core "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+    "k8s.io/apimachinery/pkg/util/intstr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	"github.com/presslabs/mysql-operator/pkg/internal/mysqlcluster"
@@ -45,8 +46,8 @@ func NewHealthyReplicasSVCSyncer(c client.Client, scheme *runtime.Scheme, cluste
 		service.Spec.Selector["role"] = "replica"
 		service.Spec.Selector["healthy"] = "yes"
 
-		if len(service.Spec.Ports) != 2 {
-			service.Spec.Ports = make([]core.ServicePort, 2)
+		if len(service.Spec.Ports) != 3 {
+			service.Spec.Ports = make([]core.ServicePort, 3)
 		}
 
 		service.Spec.Ports[0].Name = MysqlPortName
@@ -54,9 +55,14 @@ func NewHealthyReplicasSVCSyncer(c client.Client, scheme *runtime.Scheme, cluste
 		service.Spec.Ports[0].TargetPort = TargetPort
 		service.Spec.Ports[0].Protocol = core.ProtocolTCP
 
-		service.Spec.Ports[1].Name = SidecarServerPortName
-		service.Spec.Ports[1].Port = SidecarServerPort
+		service.Spec.Ports[1].Name = "binlog"
+		service.Spec.Ports[1].Port = 3307
+		service.Spec.Ports[1].TargetPort = intstr.FromInt( 3307 )
 		service.Spec.Ports[1].Protocol = core.ProtocolTCP
+
+		service.Spec.Ports[2].Name = SidecarServerPortName
+		service.Spec.Ports[2].Port = SidecarServerPort
+		service.Spec.Ports[2].Protocol = core.ProtocolTCP
 
 		return nil
 	})

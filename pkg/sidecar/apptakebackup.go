@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -31,7 +32,11 @@ func RunTakeBackupCommand(cfg *Config, srcHost, destBucket string) error {
 }
 
 func pushBackupFromTo(cfg *Config, srcHost, destBucket string) error {
+
+    localTemp := "/tmp/backup.gz"
+
 	tmpDestBucket := fmt.Sprintf("%s.tmp", destBucket)
+	latestDestBucket := filepath.Join(destBucket, "../latest.xbackup.gz")
 
 	response, err := requestABackup(cfg, srcHost, serverBackupEndpoint)
 	if err != nil {
@@ -42,7 +47,7 @@ func pushBackupFromTo(cfg *Config, srcHost, destBucket string) error {
 	gzip := exec.Command("gzip", "-c")
 
 	// nolint: gosec
-	rclone := exec.Command("rclone", append(cfg.RcloneArgs(), "rcat", tmpDestBucket)...)
+	rclone := exec.Command("rclone", append(cfg.RcloneArgs(), "rcat", localTemp)...)
 
 	gzip.Stdin = response.Body
 	gzip.Stderr = os.Stderr
@@ -77,19 +82,37 @@ func pushBackupFromTo(cfg *Config, srcHost, destBucket string) error {
 		return err
 	}
 
-	log.Info("backup was taken successfully, now move it to permanent URL")
-
-	// the backup was a success
-	// remove .tmp extension
-	// nolint: gosec
-	rclone = exec.Command("rclone", append(cfg.RcloneArgs(), "moveto", tmpDestBucket, destBucket)...)
+	log.Info("backup taken successfully, uploading")
+	rclone = exec.Command("rclone", append(cfg.RcloneArgs(), "copyto", localTemp, tmpDestBucket)...)
 
 	if err = rclone.Start(); err != nil {
-		return fmt.Errorf("final move failed: %s", err)
+		return fmt.Errorf("upload failed: %s", err)
 	}
 
 	if err = rclone.Wait(); err != nil {
-		return fmt.Errorf("final move failed: %s", err)
+		return fmt.Errorf("upload failed: %s", err)
+	}
+
+	log.Info("upload successful, cloning as latest")
+	rclone = exec.Command("rclone", append(cfg.RcloneArgs(), "copyto", tmpDestBucket, latestDestBucket)...)
+
+	if err = rclone.Start(); err != nil {
+		return fmt.Errorf("cloning failed: %s", err)
+	}
+
+	if err = rclone.Wait(); err != nil {
+		return fmt.Errorf("cloning failed: %s", err)
+	}
+
+	log.Info("cloning successful, renaming final")
+	rclone = exec.Command("rclone", append(cfg.RcloneArgs(), "moveto", tmpDestBucket, destBucket)...)
+
+	if err = rclone.Start(); err != nil {
+		return fmt.Errorf("renaming failed: %s", err)
+	}
+
+	if err = rclone.Wait(); err != nil {
+		return fmt.Errorf("renaming failed: %s", err)
 	}
 
 	return nil

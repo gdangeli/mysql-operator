@@ -368,9 +368,8 @@ func (s *sfsSyncer) ensureContainersSpec() []core.Container {
 	mysql.LivenessProbe = ensureProbe(60, 5, 5, core.Handler{
 		Exec: &core.ExecAction{
 			Command: []string{
-				"mysqladmin",
-				fmt.Sprintf("--defaults-file=%s", confClientPath),
-				"ping",
+			    "/bin/sh", "-c",
+				fmt.Sprintf(`mysqladmin --defaults-file=%s ping && which proxysql_binlog_reader`, confClientPath),
 			},
 		},
 	})
@@ -391,7 +390,7 @@ func (s *sfsSyncer) ensureContainersSpec() []core.Container {
 		Exec: &core.ExecAction{
 			Command: []string{
 				"/bin/sh", "-c",
-				fmt.Sprintf(`test $(%s) -eq 1`, mysqlTestCmd),
+				fmt.Sprintf(`test $(%s) -eq 1 && which proxysql_binlog_reader`, mysqlTestCmd),
 			},
 		},
 	})
